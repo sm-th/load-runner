@@ -34,7 +34,11 @@ class BusError(RuntimeError):
 
 class Bus(Protocol):
     def start_thread(self, title: str, text: str) -> Message:
-        """Open a thread; `text` is its root message."""
+        """Open a thread; `text` is its root message.
+
+        Buses without thread titles (Buzz) show the first line of the root message
+        as the title instead, so put what identifies the thread there too.
+        """
         ...
 
     def post(self, thread: str, text: str) -> Message:
@@ -69,5 +73,11 @@ def open_bus(config: Mapping[str, Any], identity: str) -> Bus:
             from .sqlite import SqliteBus
 
             return SqliteBus(Path(config.get("path", ".load-runner/bus.db")), identity)
+        case "buzz":
+            from .buzz import BuzzBus
+
+            if "channel" not in config:
+                raise BusError("[bus] kind = 'buzz' needs channel = '<channel uuid>'")
+            return BuzzBus(config["channel"], [config.get("bin", "buzz")])
         case _:
-            raise BusError(f"unknown bus kind {kind!r}; expected sqlite")
+            raise BusError(f"unknown bus kind {kind!r}; expected sqlite or buzz")

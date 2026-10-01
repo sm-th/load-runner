@@ -2,6 +2,7 @@
 
 import pytest
 
+from load_runner import protocol
 from load_runner.bus import BusError
 
 
@@ -38,12 +39,15 @@ def test_feed_subscribes_from_now_and_returns_new_messages_across_threads(connec
     assert person.feed(cursor) == ([], cursor)
 
 
-def test_threads_lists_most_recent_oldest_first(connect):
+def test_threads_lists_most_recent_oldest_first_with_findable_run_numbers(connect):
     runner = connect("runner")
     for n in range(1, 5):
-        runner.start_thread(f"train · run {n}", "started")
+        runner.start_thread(f"train · run {n}", f"▶ train · run {n} started")
 
-    assert [t.title for t in runner.threads(limit=2)] == ["train · run 3", "train · run 4"]
+    threads = runner.threads(limit=2)
+
+    assert [protocol.run_number(t.title, "train") for t in threads] == [3, 4]
+    assert [m.text for m in runner.thread(threads[-1].id)] == ["▶ train · run 4 started"]
 
 
 def test_post_to_unknown_thread_fails(connect):
