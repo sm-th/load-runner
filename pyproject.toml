@@ -1,6 +1,6 @@
 [project]
 name = "load-runner"
-version = "0.0.0"
+version = "0.1.0"
 description = "Mechanical runners, AI agents, and people in one thread: a message-bus loop for CI, monitoring, and training runs"
 readme = "README.md"
 license = "MIT"
