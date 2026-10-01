@@ -24,6 +24,8 @@ class RunnerConfig:
     flush: float = 2.0  # seconds between output messages
     timeout: float = 0  # 0 never times out
     poll: float = 0.5  # seconds between bus reads
+    allow: tuple[str, ...] = ()  # who may command the runner; empty allows everyone in the thread
+    wait_for_reply: bool = False  # hold the next run until someone replies to the result
 
 
 @dataclass(frozen=True)
@@ -58,6 +60,8 @@ def _runner(path: Path, table: dict[str, Any]) -> RunnerConfig:
         table["command"] = shlex.split(command)
     elif not (isinstance(command, list) and command and all(isinstance(a, str) for a in command)):
         raise ConfigError(f"{path}: [runner] command must be a string or a list of strings")
+    if "allow" in table:
+        table["allow"] = tuple(table["allow"])
     return _build(path, "runner", RunnerConfig, table)
 
 
