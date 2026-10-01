@@ -7,6 +7,7 @@ platform (a SQLite file, Buzz, Zulip) and hide its API from the rest of the code
 
 from __future__ import annotations
 
+import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -79,5 +80,15 @@ def open_bus(config: Mapping[str, Any], identity: str) -> Bus:
             if "channel" not in config:
                 raise BusError("[bus] kind = 'buzz' needs channel = '<channel uuid>'")
             return BuzzBus(config["channel"], [config.get("bin", "buzz")])
+        case "zulip":
+            from .zulip import ZulipBus
+
+            missing = [key for key in ("site", "stream") if key not in config]
+            missing += [var for var in ("ZULIP_EMAIL", "ZULIP_API_KEY") if not os.environ.get(var)]
+            if missing:
+                raise BusError(f"[bus] kind = 'zulip' needs {', '.join(missing)}")
+            return ZulipBus(
+                config["site"], config["stream"], os.environ["ZULIP_EMAIL"], os.environ["ZULIP_API_KEY"]
+            )
         case _:
-            raise BusError(f"unknown bus kind {kind!r}; expected sqlite or buzz")
+            raise BusError(f"unknown bus kind {kind!r}; expected sqlite, buzz, or zulip")

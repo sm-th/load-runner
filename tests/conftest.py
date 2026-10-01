@@ -4,11 +4,13 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
+from fake_zulip import STREAM, FakeZulip
 
 from load_runner.bus import Bus
 from load_runner.bus.buzz import BuzzBus
 from load_runner.bus.memory import MemoryHub
 from load_runner.bus.sqlite import SqliteBus
+from load_runner.bus.zulip import ZulipBus
 
 BusFactory = Callable[[str], Bus]
 FAKE_BUZZ = [sys.executable, str(Path(__file__).with_name("fake_buzz.py"))]
@@ -34,7 +36,14 @@ def buzz_relay(tmp_path) -> Callable[..., BuzzBus]:
     return buzz(tmp_path)
 
 
-@pytest.fixture(params=["memory", "sqlite", "buzz"])
+@pytest.fixture
+def zulip():
+    server = FakeZulip()
+    yield server
+    server.close()
+
+
+@pytest.fixture(params=["memory", "sqlite", "buzz", "zulip"])
 def connect(request, tmp_path) -> BusFactory:
     """`connect(identity)` joins one shared bus of each kind as a participant."""
     match request.param:
@@ -44,3 +53,6 @@ def connect(request, tmp_path) -> BusFactory:
             return lambda identity: SqliteBus(tmp_path / "bus.db", identity)
         case "buzz":
             return buzz(tmp_path)
+        case "zulip":
+            site = request.getfixturevalue("zulip").site
+            return lambda identity: ZulipBus(site, STREAM, f"{identity}@example.com", "key")
