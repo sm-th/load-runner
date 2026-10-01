@@ -29,7 +29,7 @@ Article = "https://andysmith.ai/2026/Oct/2/communication-between-runners-and-age
 load-runner = "load_runner.cli:main"
 
 [build-system]
-requires = ["uv_build>=0.11.19,<0.12.0"]
+requires = ["uv_build>=0.11.19,<0.13.0"]
 build-backend = "uv_build"
 
 [dependency-groups]
