@@ -6,8 +6,14 @@ Every runner message starts with one header line:
     ▹ train · run 3 output
     ✓ train · run 3 passed · exit 0 · 4.2s
     ✗ train · run 3 failed · exit 1 · 4.2s
+    ■ train · run 3 stopped · by andy · 2.0s
+    ↻ train · run 3 restarting · by agent
+    ⚙ train · run 3 set · lr = 0.03 for the next run · by agent
+    ⊘ train · run 3 refused · /stop from mallory
 
-The rest of the message is detail for people and agents.
+The rest of the message is detail for people and agents. Anyone else in the
+thread commands the runner with lines such as `/stop`, `/restart`,
+`/set lr=0.03`, and `/unset lr`.
 """
 
 from __future__ import annotations
@@ -15,8 +21,9 @@ from __future__ import annotations
 import json
 import re
 import shlex
+import tomllib
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 GLYPHS = {
@@ -24,8 +31,14 @@ GLYPHS = {
     "output": "▹",
     "passed": "✓",
     "failed": "✗",
+    "stopped": "■",
+    "restarting": "↻",
+    "set": "⚙",
+    "refused": "⊘",
 }
 HEADER = re.compile(r"(?P<glyph>\S) (?P<name>.+?) · run (?P<run>\d+) (?P<event>[a-z]+)(?: · (?P<detail>.*))?")
+COMMAND = re.compile(r"\s*/(?P<verb>stop|restart|set|unset)(?:\s+(?P<args>.*))?")
+KEY = re.compile(r"[A-Za-z_]\w*")
 RESULT_PREFIX = "::result "
 MAX_TEXT = 3500  # below Zulip's 10 000 and Buzz's 64 KiB limits, with room for headers
 
@@ -36,6 +49,14 @@ class Event:
     run: int
     event: str  # a key of GLYPHS
     detail: str
+
+
+@dataclass(frozen=True, slots=True)
+class Command:
+    verb: str  # stop | restart | set | unset
+    values: dict[str, Any] = field(default_factory=dict)  # set
+    keys: tuple[str, ...] = ()  # unset
+    error: str = ""  # why the line could not be understood
 
 
 def title(name: str, run: int) -> str:
@@ -59,6 +80,45 @@ def parse(text: str) -> Event | None:
     if not match or GLYPHS.get(match["event"]) != match["glyph"]:
         return None
     return Event(match["name"], int(match["run"]), match["event"], match["detail"] or "")
+
+
+def commands(text: str) -> list[Command]:
+    """Commands on their own lines of a chat message, in order."""
+    found = []
+    for line in text.splitlines():
+        match = COMMAND.fullmatch(line.rstrip())
+        if match:
+            found.append(_command(match["verb"], match["args"] or ""))
+    return found
+
+
+def _command(verb: str, args: str) -> Command:
+    if verb in ("stop", "restart"):
+        return Command(verb)
+    try:
+        tokens = shlex.split(args)
+    except ValueError as error:
+        return Command(verb, error=str(error))
+    if not tokens:
+        return Command(verb, error=f"/{verb} needs at least one key")
+    if verb == "unset":
+        bad = [t for t in tokens if not KEY.fullmatch(t)]
+        return Command(verb, keys=tuple(tokens), error=f"bad keys {bad}" if bad else "")
+    values = {}
+    for token in tokens:
+        key, eq, raw = token.partition("=")
+        if not eq or not KEY.fullmatch(key):
+            return Command(verb, error=f"expected key=value, got {token!r}")
+        values[key] = _value(raw)
+    return Command(verb, values=values)
+
+
+def _value(raw: str) -> Any:
+    """A TOML value (`0.03`, `true`, `"text"`), or the raw text."""
+    try:
+        return tomllib.loads(f"v = {raw}")["v"]
+    except tomllib.TOMLDecodeError:
+        return raw
 
 
 def started(name: str, run: int, params: Mapping[str, Any], argv: list[str]) -> str:
