@@ -1,0 +1,39 @@
+<!doctype html>
+<!-- Static diagrams for the README: ?d=loop|bus|thread&theme=light|dark.
+     #shot is the exported crop: the diagram with a margin, widened or heightened to a 16:9-ish frame.
+     body[data-ready] is set once fonts have loaded and the crop is laid out. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>load-runner diagrams</title>
+<style>
+  @font-face { font-family: "Inter"; font-weight: 100 900; src: url(fonts/InterVariable.woff2) format("woff2"); }
+  @font-face { font-family: "Commit Mono"; font-weight: 400; src: url(fonts/CommitMono-400-Regular.otf) format("opentype"); }
+  @font-face { font-family: "Commit Mono"; font-weight: 700; src: url(fonts/CommitMono-700-Regular.otf) format("opentype"); }
+  :root { --font-text: "Inter", system-ui, sans-serif; --font-mono: "Commit Mono", ui-monospace, monospace; --klein: #002fa7; --on-klein: #ffffff; }
+  .light { --bg: #ffffff; --panel: #f4f4f4; --fg: #121212; --grey: #636363; --faint: #cfcfcf; --blue: #002fa7; --red: #ac3225; --green: #2b7440; }
+  .dark { --bg: #0e0e0e; --panel: #1b1b1b; --fg: #e8e8e8; --grey: #868686; --faint: #3a3a3a; --blue: #598df9; --red: #eb8373; --green: #76be86; }
+  body { margin: 0; background: var(--bg); }
+  #shot { display: inline-flex; align-items: center; justify-content: center; background: var(--bg); }
+</style>
+<script src="diagrams.js"></script>
+</head>
+<body>
+<div id="shot"></div>
+<script>
+const MARGIN = 64, MIN_ASPECT = 16 / 10, MAX_ASPECT = 2.2;
+const query = new URLSearchParams(location.search);
+document.body.className = query.get("theme") === "dark" ? "dark" : "light";
+installDiagramCss();
+const shot = document.getElementById("shot");
+shot.innerHTML = DIAGRAMS[query.get("d") ?? "loop"]();
+const svg = shot.querySelector("svg");
+let width = svg.width.baseVal.value + 2 * MARGIN, height = svg.height.baseVal.value + 2 * MARGIN;
+if (width / height > MAX_ASPECT) height = Math.round(width / MAX_ASPECT);
+if (width / height < MIN_ASPECT) width = Math.round(height * MIN_ASPECT);
+shot.style.width = width + "px";
+shot.style.height = height + "px";
+document.fonts.ready.then(() => { document.body.dataset.ready = "1"; });
+</script>
+</body>
+</html>
