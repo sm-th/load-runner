@@ -1,0 +1,480 @@
+<!doctype html>
+<!-- Source of the load-runner video (16:9, 1280 x 720 rendered at 1.5x = 1920 x 1080, 30 fps, light theme).
+     Retells "Communication Between Runners and Agents" (andysmith.ai, 2026-10-02).
+     Every element is laid out once; time only changes opacity, position, and stroke, so nothing jumps.
+     Setting body[data-t] (ms) and dispatching a "render" event draws the frame at that time;
+     body[data-duration] is the length. ?t=<ms> previews one frame. The soundtrack (music.py) is
+     built on the same timeline at 150 BPM: every entrance below lands on a 400 ms beat. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>load-runner</title>
+<style>
+  @font-face { font-family: "Inter"; font-weight: 100 900; src: url(fonts/InterVariable.woff2) format("woff2"); }
+  @font-face { font-family: "Commit Mono"; font-weight: 400; src: url(fonts/CommitMono-400-Regular.otf) format("opentype"); }
+  @font-face { font-family: "Commit Mono"; font-weight: 700; src: url(fonts/CommitMono-700-Regular.otf) format("opentype"); }
+  :root {
+    --font-text: "Inter", system-ui, sans-serif; --font-mono: "Commit Mono", ui-monospace, monospace;
+    --klein: #002fa7; --on-klein: #ffffff;
+    --bg: #ffffff; --panel: #f4f4f4; --fg: #121212; --grey: #636363; --faint: #cfcfcf;
+    --blue: #002fa7; --red: #ac3225; --green: #2b7440;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  .frame { position: relative; width: 1280px; height: 720px; overflow: hidden; background: var(--bg); color: var(--fg); font-family: var(--font-text); font-variant-ligatures: none; }
+  .scene { position: absolute; inset: 0; padding: 72px 88px; background: var(--bg); }
+  .stamp { font: 400 22px/1 var(--font-mono); color: var(--grey); display: flex; gap: 28px; }
+  .stamp b { font-weight: 400; color: var(--blue); }
+  h1 { font-weight: 700; letter-spacing: -.035em; font-size: 108px; line-height: 1.0; margin: 40px 0 0; }
+  h1 em, h2 em { font-style: normal; color: var(--blue); }
+  h2 { font-weight: 700; letter-spacing: -.03em; font-size: 64px; line-height: 1.04; margin: 28px 0 0; }
+  h2.small { font-size: 44px; margin-top: 20px; }
+  .sub { font-size: 30px; line-height: 1.4; color: var(--grey); margin: 28px 0 0; }
+  .k { display: inline-block; width: .5em; height: .8em; background: var(--klein); vertical-align: -.04em; margin-left: .08em; }
+  .line { display: block; }
+  .foot { position: absolute; left: 88px; bottom: 80px; font: 400 40px/1 var(--font-mono); color: var(--blue); }
+  .mono { font-family: var(--font-mono); }
+  .abs { position: absolute; }
+
+  /* S2: two kinds of work */
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 48px; margin-top: 44px; }
+  .col { border-top: 3px solid var(--fg); padding-top: 20px; }
+  .col .name { display: flex; align-items: baseline; gap: 18px; font-weight: 700; font-size: 44px; letter-spacing: -.03em; line-height: 1; }
+  .col .name span { font: 400 20px/1 var(--font-mono); color: var(--grey); letter-spacing: 0; }
+  .col ul { list-style: none; margin: 20px 0 0; padding: 0; font-size: 28px; line-height: 1.5; }
+  .col li::before { content: "→ "; font-family: var(--font-mono); color: var(--blue); }
+  .col .note { margin-top: 18px; font: 400 20px/1 var(--font-mono); color: var(--grey); }
+
+  /* diagrams */
+  .dia { position: absolute; left: 88px; }
+  .dia svg { height: auto; }
+
+  /* S4: quotes from people */
+  .quote { position: absolute; left: 896px; width: 296px; padding: 2px 0 6px 22px; border-left: 4px solid var(--klein); }
+  .quote .st, .m .st { font: 400 16px/1 var(--font-mono); color: var(--grey); display: flex; gap: 16px; }
+  .quote .st b, .m .st b { font-weight: 400; color: var(--blue); }
+  .quote p { margin: 12px 0 0; font-size: 25px; line-height: 1.35; letter-spacing: -.01em; }
+
+  /* S6: a live thread */
+  .thread { position: absolute; left: 88px; top: 196px; width: 700px; height: 444px; background: var(--panel); }
+  .bar { height: 46px; padding: 15px 22px 0; border-bottom: 1px solid var(--faint); font: 400 17px/1 var(--font-mono); color: var(--grey); }
+  .bar::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 12px; background: var(--klein); }
+  .view { position: absolute; left: 0; right: 0; top: 46px; bottom: 0; overflow: hidden; }
+  .list { position: relative; padding: 4px 26px 18px; }
+  .div { display: flex; align-items: center; gap: 14px; margin: 16px 0 2px; font: 400 15px/1 var(--font-mono); color: var(--grey); }
+  .div::before, .div::after { content: ""; flex: 1; border-top: 1px solid var(--faint); }
+  .m { padding-top: 14px; }
+  .m.cont { padding-top: 2px; }
+  .m .st { margin-bottom: 8px; }
+  .ln { font: 400 20px/1.45 var(--font-mono); white-space: pre; }
+  .ln.b { color: var(--blue); } .ln.r { color: var(--red); } .ln.g { color: var(--green); } .ln.o { color: var(--grey); }
+  .ln i { font-style: normal; color: var(--blue); }
+  .m.reply { margin: 14px 0 2px 14px; padding: 2px 0 6px 20px; border-left: 4px solid var(--klein); }
+  .m.reply p { margin: 0; font-size: 23px; line-height: 1.4; letter-spacing: -.01em; }
+  .m.reply .ln { color: var(--blue); }
+  .roles { position: absolute; left: 836px; top: 196px; width: 356px; display: grid; gap: 22px; }
+  .role b { display: flex; align-items: center; gap: 12px; font-weight: 600; font-size: 28px; letter-spacing: -.01em; line-height: 1; }
+  .role b::before { content: ""; width: 12px; height: 12px; background: var(--faint); }
+  .role.on b::before { background: var(--klein); }
+  .role span { display: block; margin: 8px 0 0 24px; font: 400 17px/1.3 var(--font-mono); color: var(--grey); }
+  .counters { position: absolute; left: 836px; top: 478px; width: 356px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; border-top: 3px solid var(--fg); padding-top: 18px; }
+  .counter .n { font-weight: 700; font-size: 76px; letter-spacing: -.04em; line-height: 1; }
+  .counter .n span { display: inline-block; }
+  .counter .l { margin-top: 10px; font: 400 18px/1.25 var(--font-mono); color: var(--grey); }
+
+  /* S7: try it */
+  .panel { position: absolute; background: var(--panel); }
+  .panel pre { margin: 0; padding: 18px 22px; font: 400 17px/1.45 var(--font-mono); }
+  .panel pre .h { color: var(--blue); }
+  .panel pre .o { color: var(--grey); }
+  .cmds { padding: 20px 22px; font: 400 19px/1.8 var(--font-mono); }
+  .cmds div { white-space: pre; }
+  .cmds div::before { content: "$ "; color: var(--grey); }
+  .cmds span { color: var(--grey); }
+  .buses { position: absolute; left: 640px; top: 478px; }
+  .buses .l { font: 400 20px/1 var(--font-mono); color: var(--grey); }
+  .chips { display: flex; gap: 12px; margin-top: 16px; }
+  .chip { font: 400 24px/1 var(--font-mono); padding: 14px 16px; border: 3px solid var(--fg); }
+
+  /* S8: the call to action on Klein */
+  .cta { background: var(--klein); color: var(--on-klein); }
+  .cta .stamp, .cta .stamp b { color: var(--on-klein); }
+  .cta .stamp span { opacity: .75; }
+  .cta h1 { font-size: 96px; line-height: 1.04; }
+  .cta h1 u { text-decoration-thickness: .07em; text-underline-offset: .12em; }
+  .cta .k { background: var(--on-klein); }
+  .cta .sub { color: var(--on-klein); opacity: .85; margin-top: 30px; }
+  .contacts { position: absolute; left: 88px; bottom: 80px; display: grid; gap: 18px; font: 400 36px/1 var(--font-mono); }
+  .contacts span { opacity: .7; display: inline-block; width: 5.4em; }
+
+  /* the runner on the progress rail */
+  svg.rail { position: absolute; left: 0; top: 640px; width: 1280px; height: 80px; overflow: visible; shape-rendering: crispEdges; }
+</style>
+<script src="diagrams.js"></script>
+</head>
+<body>
+<div class="frame">
+
+<section class="scene" data-in="0" data-out="6400">
+  <div class="stamp a" data-in="-1000"><b>2026-10-02</b><span>load-runner</span><span>andysmith.ai</span></div>
+  <h1><span class="line a" data-in="-1000">Mechanics run.</span><span class="line a" data-in="-1000"><em>Agents think.<i class="k" data-blink="-520"></i></em></span></h1>
+  <div class="sub a" data-in="800">People watch and step in. One thread for all three.</div>
+  <div class="foot a" data-in="1600">→ github.com/sm-th/load-runner</div>
+</section>
+
+<section class="scene" data-in="6400" data-out="12800">
+  <div class="stamp a" data-in="6400"><b>two kinds of work</b><span>from the article</span></div>
+  <h2 class="a" data-in="6600"><span class="line">Intelligence costs money.</span><em class="line">Mechanics don't.</em></h2>
+  <div class="cols">
+    <div class="col a" data-in="7600">
+      <div class="name">Agent<span>intelligence</span></div>
+      <ul><li class="a" data-in="8000">reads results</li><li class="a" data-in="8400">decides</li><li class="a" data-in="8800">changes the plan</li></ul>
+      <div class="note a" data-in="9200">every run costs tokens</div>
+    </div>
+    <div class="col a" data-in="9600">
+      <div class="name">Runner<span>mechanics</span></div>
+      <ul><li class="a" data-in="10000">CI checks</li><li class="a" data-in="10400">monitoring</li><li class="a" data-in="10800">training loops</li></ul>
+      <div class="note a" data-in="11200">code + parameters → messages → result</div>
+    </div>
+  </div>
+</section>
+
+<section class="scene" data-in="12800" data-out="20800">
+  <div class="stamp a" data-in="12800"><b>the simplest loop</b><span>diagram 1 of 3</span></div>
+  <h2 class="a" data-in="13000">A runner reports. <em>An agent answers.</em></h2>
+  <div class="dia" id="d-loop" data-d="loop" data-start="14000" data-step="400" data-width="1104" style="top:300px"></div>
+</section>
+
+<section class="scene" data-in="20800" data-out="30400">
+  <div class="stamp a" data-in="20800"><b>people in the loop</b><span>diagram 2 of 3</span></div>
+  <h2 class="a" data-in="21000">One bus for <em>runners, agents, people</em></h2>
+  <div class="dia" data-d="bus" data-start="22000" data-step="200" data-width="760" style="top:248px"></div>
+  <div class="quote a" data-in="26400" style="top:300px"><div class="st"><b>person</b><span>in the thread</span></div><p>“Yes, I like everything.”</p></div>
+  <div class="quote a" data-in="27600" style="top:432px"><div class="st"><b>person</b><span>in the thread</span></div><p>“Wait, you queued the next task differently.”</p></div>
+</section>
+
+<section class="scene" data-in="30400" data-out="41600">
+  <div class="stamp a" data-in="30400"><b>anatomy of a run</b><span>diagram 3 of 3</span></div>
+  <h2 class="a" data-in="30600">One thread <em>per run</em></h2>
+  <div class="dia" data-d="thread" data-start="31600" data-step="400" data-width="1060" style="top:206px"></div>
+</section>
+
+<section class="scene" data-in="41600" data-out="56000">
+  <div class="stamp a" data-in="41600"><b>a real thread</b><span>buzz</span><span>#training</span></div>
+  <h2 class="small a" data-in="41750">Watch the loop <em>fix itself</em></h2>
+  <div class="thread a" data-in="42000">
+    <div class="bar">buzz · #training</div>
+    <div class="view"><div class="list" id="list">
+      <div class="div a" data-in="42400">train · run 7</div>
+      <div class="m a" data-in="42400" data-who="runner"><div class="st"><b>runner</b><span>14:02:07</span></div><div class="ln b">▶&#xFE0E; train · run 7 started</div><div class="ln o">lr = 0.3 · epochs = 3</div></div>
+      <div class="m cont a" data-in="43200" data-who="runner"><div class="ln"><i>▹&#xFE0E;</i> epoch 1 loss 2.31</div></div>
+      <div class="m cont a" data-in="44000" data-who="runner"><div class="ln"><i>▹&#xFE0E;</i> epoch 2 loss 9.84</div></div>
+      <div class="m cont a" data-in="44800" data-who="runner"><div class="ln"><i>▹&#xFE0E;</i> epoch 3 loss nan</div></div>
+      <div class="m cont a" data-in="45600" data-who="runner"><div class="ln r">✗&#xFE0E; train · run 7 failed · exit 1 · 3.1s</div></div>
+      <div class="m reply a" data-in="46800" data-who="agent"><div class="st"><b>agent</b><span>14:02:11</span></div><p>Loss diverged. Lowering the learning rate.</p><div class="ln">/set lr=0.03</div><div class="ln">/restart</div></div>
+      <div class="m a" data-in="48000" data-who="runner"><div class="st"><b>runner</b><span>14:02:12</span></div><div class="ln b">⚙&#xFE0E; lr = 0.03 for the next run · by agent</div></div>
+      <div class="div a" data-in="48800">train · run 8</div>
+      <div class="m a" data-in="48800" data-who="runner"><div class="st"><b>runner</b><span>14:02:13</span></div><div class="ln b">▶&#xFE0E; train · run 8 started</div><div class="ln o">lr = 0.03 · epochs = 3</div></div>
+      <div class="m cont a" data-in="49600" data-who="runner"><div class="ln"><i>▹&#xFE0E;</i> epoch 1 loss 2.31</div></div>
+      <div class="m cont a" data-in="50400" data-who="runner"><div class="ln"><i>▹&#xFE0E;</i> epoch 2 loss 1.12</div></div>
+      <div class="m cont a" data-in="51200" data-who="runner"><div class="ln"><i>▹&#xFE0E;</i> epoch 3 loss 0.48</div></div>
+      <div class="m cont a" data-in="52000" data-who="runner"><div class="ln g">✓&#xFE0E; train · run 8 passed · exit 0 · 3.4s</div></div>
+      <div class="m reply a" data-in="52800" data-who="agent"><div class="st"><b>agent</b><span>14:02:17</span></div><p>Got it, everything is okay.</p></div>
+      <div class="m reply a" data-in="54000" data-who="person"><div class="st"><b>andy</b><span>14:02:19</span></div><p>No, that's enough. Stop it.</p><div class="ln">/stop</div></div>
+      <div class="m a" data-in="54800" data-who="runner"><div class="st"><b>runner</b><span>14:02:20</span></div><div class="ln b">■&#xFE0E; train · run 8 stopped · by andy</div></div>
+    </div></div>
+  </div>
+  <div class="roles">
+    <div class="role a" data-in="42400" data-role="runner"><b>runner</b><span>mechanics, no tokens</span></div>
+    <div class="role a" data-in="42800" data-role="agent"><b>agent</b><span>wakes only on results and people</span></div>
+    <div class="role a" data-in="43200" data-role="person"><b>person</b><span>steps in any time</span></div>
+  </div>
+  <div class="counters a" data-in="43600">
+    <div class="counter"><div class="n"><span id="c-runner">0</span></div><div class="l">runner messages</div></div>
+    <div class="counter"><div class="n"><span id="c-agent">0</span></div><div class="l">agent wake-ups</div></div>
+  </div>
+</section>
+
+<section class="scene" data-in="56000" data-out="64000">
+  <div class="stamp a" data-in="56000"><b>try it</b><span>three terminals</span><span>one config</span></div>
+  <h2 class="a" data-in="56200">Three processes, <em>one thread</em></h2>
+  <div class="panel a" data-in="57000" style="left:88px; top:224px; width:512px">
+    <div class="bar">load-runner.toml</div>
+<pre><span class="h">[bus]</span>
+kind = "sqlite"
+
+<span class="h">[runner]</span>
+name = "train"
+command = "python train.py --lr {lr}"
+wait_for_reply = true
+
+<span class="h">[params]</span>
+lr = 0.3
+epochs = 3
+
+<span class="h">[agent]</span>
+command = "claude -p"</pre>
+  </div>
+  <div class="panel a" data-in="57800" style="left:640px; top:224px; width:552px">
+    <div class="bar">terminal</div>
+    <div class="cmds">
+      <div class="a" data-in="58000">load-runner run          <span># mechanics</span></div>
+      <div class="a" data-in="58400">load-runner agent        <span># intelligence</span></div>
+      <div class="a" data-in="58800">load-runner watch        <span># people</span></div>
+      <div class="a" data-in="59600">load-runner say /stop    <span># step in</span></div>
+    </div>
+  </div>
+  <div class="buses">
+    <div class="l a" data-in="60400">buses</div>
+    <div class="chips"><div class="chip a" data-in="60800">sqlite</div><div class="chip a" data-in="61000">buzz</div><div class="chip a" data-in="61200">zulip</div><div class="chip a" data-in="61400">memory</div></div>
+  </div>
+</section>
+
+<section class="scene cta" data-in="64000" data-out="999999">
+  <div class="stamp a" data-in="64000"><b>sm-th/load-runner</b><span>MIT</span></div>
+  <h1><span class="line a" data-in="64400">Mechanics run.</span><span class="line a" data-in="64800">Agents think.</span><span class="line a" data-in="65200"><u>People decide.</u><i class="k" data-blink="65200"></i></span></h1>
+  <div class="sub a" data-in="68800">We use Buzz as the message bus. A play on words.</div>
+  <div class="contacts">
+    <div class="a" data-in="66000"><span>code</span>github.com/sm-th/load-runner</div>
+    <div class="a" data-in="66400"><span>article</span>andysmith.ai</div>
+  </div>
+</section>
+
+<svg class="rail" viewBox="0 0 1280 80" aria-hidden="true">
+  <defs><clipPath id="ground"><rect x="-100" y="-100" width="1500" height="160"/></clipPath></defs>
+  <rect id="rail-rest" x="0" y="60" width="1280" height="2"/>
+  <rect id="rail-done" x="0" y="60" width="0" height="2"/>
+  <g id="hole"></g>
+  <g id="fx"></g>
+  <g clip-path="url(#ground)"><g id="runner"></g></g>
+</svg>
+
+</div>
+<script>
+const DURATION = 73600, ENTER = 520, EXIT = 320, SHIFT = 22, BLINK = 530, DRAW = 520, SCROLL = 480;
+document.body.dataset.duration = String(DURATION);
+const ease = (x) => 1 - Math.pow(1 - Math.min(Math.max(x, 0), 1), 3);
+const clamp01 = (x) => Math.min(Math.max(x, 0), 1);
+
+// Diagrams: data-o (reading order) becomes an entrance time; nodes and labels fade up, solid edges draw.
+installDiagramCss();
+for (const box of document.querySelectorAll(".dia")) {
+  box.innerHTML = DIAGRAMS[box.dataset.d]();
+  const svg = box.querySelector("svg");
+  svg.style.width = box.dataset.width + "px";
+  svg.removeAttribute("width");
+  svg.removeAttribute("height");
+  const start = +box.dataset.start, step = +box.dataset.step;
+  for (const el of svg.querySelectorAll("[data-o]")) {
+    const at = String(start + +el.dataset.o * step);
+    if (el.tagName === "path" && !el.matches(".bad, .ctl")) el.dataset.draw = at;
+    else { el.classList.add("a"); el.dataset.in = at; }
+  }
+}
+const drawn = [...document.querySelectorAll("[data-draw]")].map((path) => {
+  const length = path.getTotalLength();
+  path.style.strokeDasharray = `${length}`;
+  return { path, length, at: +path.dataset.draw, start: path.getAttribute("marker-start"), end: path.getAttribute("marker-end") };
+});
+
+// S3: a token travels the loop, result first, then feedback.
+const loopSvg = document.querySelector("#d-loop svg");
+const [resultPath, feedbackPath] = loopSvg.querySelectorAll("path.edge");
+const token = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+token.setAttribute("width", "14"); token.setAttribute("height", "14"); token.style.fill = "var(--klein)";
+loopSvg.append(token);
+function renderToken(t) {
+  const cycle = 3200, since = t - 16000, phase = since % cycle;
+  let path = null, p = 0;
+  if (since >= 0 && t < 20400 && phase < 1200) { path = resultPath; p = phase / 1200; }
+  else if (since >= 0 && t < 20400 && phase >= 1600 && phase < 2800) { path = feedbackPath; p = (phase - 1600) / 1200; }
+  token.style.display = path ? "" : "none";
+  if (!path) return;
+  const length = path.getTotalLength() - 14;
+  const pt = path.getPointAtLength(length * (0.5 - 0.5 * Math.cos(Math.PI * p)));
+  token.setAttribute("x", String(pt.x - 7)); token.setAttribute("y", String(pt.y - 7));
+}
+
+// S6: the thread scrolls so the newest message is always in view; roles and counters follow it.
+const list = document.getElementById("list");
+const view = list.parentElement;
+const messages = [...list.children];
+const counterRunner = document.getElementById("c-runner"), counterAgent = document.getElementById("c-agent");
+function counter(el, events, t) {
+  const seen = events.filter((at) => t >= at);
+  el.textContent = String(seen.length);
+  const p = seen.length ? ease((t - seen.at(-1)) / 300) : 1;
+  el.style.transform = `translateY(${(1 - p) * 14}px)`;
+  el.style.color = p < 1 ? "var(--blue)" : "";
+}
+function renderThread(t) {
+  let scroll = 0, who = null;
+  for (const el of messages) {
+    const at = +el.dataset.in;
+    if (t < at) break;
+    const target = Math.max(0, el.offsetTop + el.offsetHeight + 18 - view.clientHeight);
+    scroll += (target - scroll) * ease((t - at) / SCROLL);
+    who = el.dataset.who ?? who;
+  }
+  list.style.transform = `translateY(${-scroll}px)`;
+  for (const role of document.querySelectorAll(".role")) role.classList.toggle("on", role.dataset.role === who);
+  const runnerAt = messages.filter((m) => m.dataset.who === "runner").map((m) => +m.dataset.in);
+  const agentAt = messages.filter((m) => m.dataset.who === "agent").map((m) => +m.dataset.in);
+  counter(counterRunner, runnerAt, t);
+  counter(counterAgent, agentAt, t);
+}
+
+// The runner: an original 11 x 13 pixel sprite, 3 px pixels, one run cycle per 400 ms beat.
+const SPRITES = {
+  run0: ["....####...", "...#######.", "...##.##...", "...#####...", "....###....", "..######...", ".#.####.#..", "...####..#.", "...####....", "..##..##...", ".##....##..", "##......##.", "#........#."],
+  run1: ["...........", "....####...", "...#######.", "...##.##...", "...#####...", "....###....", "...#####...", "..#.###.#..", "...####....", "...####....", "....###....", "...##.##...", "...#...##.."],
+  run2: ["....####...", "...#######.", "...##.##...", "...#####...", "....###....", "..######...", ".#.####.#..", "...####..#.", "...####....", "...##.##...", "..##...##..", "###.....#..", "........##."],
+  run3: ["...........", "....####...", "...#######.", "...##.##...", "...#####...", "....###....", "...#####...", "..#.###.#..", "...####....", "...####....", "...###.....", "..##.##....", "..#...#...."],
+  stand: ["....####...", "...#######.", "...##.##...", "...#####...", "....###....", "...#####...", "..#.###.#..", "..#.###.#..", "...#####...", "...##.##...", "...#...#...", "...#...#...", "..##..##..."],
+  skid: ["..####.....", ".#######...", ".##.##.....", ".#####.....", "..###......", ".#####.##..", "#.####...#.", "..####.....", "..#####....", "...##.##...", "...#...##..", "..##....##.", "..#......##"],
+  fall: ["#..####..#.", "#.#######..", ".#.##.##...", "...#####...", "....###....", "...#####...", "...#####...", "...####....", "...####....", "...#..#....", "..#....#...", "..#....#...", "..........."],
+};
+const P = 3, SW = 11 * P, SH = 13 * P, GROUND = 60;
+const NS = "http://www.w3.org/2000/svg";
+const runner = document.getElementById("runner");
+const frames = {};
+for (const [name, rows] of Object.entries(SPRITES)) {
+  let d = "";
+  rows.forEach((row, y) => [...row].forEach((c, x) => { if (c === "#") d += `M${x * P},${y * P}h${P}v${P}h${-P}z`; }));
+  const path = document.createElementNS(NS, "path");
+  path.setAttribute("d", d);
+  runner.append(path);
+  frames[name] = path;
+}
+
+// Position: integrate a speed profile so the rail still reads as progress through the video.
+const HOLE = [45600, 47550], BURST = [52000, 52800], SKID = [54800, 55150], STOPPED = 56000, ZIP = 72000;
+const X0 = 20, X1 = 1180;
+function speed(t) {
+  if (t >= HOLE[0] && t < HOLE[1]) return 0;
+  if (t >= BURST[0] && t < BURST[1]) return 5;
+  if (t >= SKID[0] && t < SKID[1]) return 1.6 * (1 - (t - SKID[0]) / (SKID[1] - SKID[0]));
+  if (t >= SKID[1] && t < STOPPED) return 0;
+  return 1;
+}
+const STEP = 10, cumulative = [0];
+for (let t = 0; t < ZIP; t += STEP) cumulative.push(cumulative.at(-1) + speed(t) * STEP);
+function runnerX(t) {
+  const i = Math.min(Math.max(t, 0), ZIP) / STEP, lo = Math.floor(i), hi = Math.min(lo + 1, cumulative.length - 1);
+  const c = cumulative[lo] + (cumulative[hi] - cumulative[lo]) * (i - lo);
+  const x = X0 + (X1 - X0) * c / cumulative.at(-1);
+  return t < ZIP ? x : x + 1500 * Math.pow((t - ZIP) / 500, 2);
+}
+const HOLE_X = runnerX(HOLE[0]) + SW / 2;
+
+// Colours follow the Klein CTA in: blue on white, white on blue.
+const mix = (a, b, c) => "rgb(" + a.map((v, i) => Math.round(v + (b[i] - v) * c)).join(",") + ")";
+const KLEIN = [0, 47, 167], WHITE = [255, 255, 255], FAINT = [207, 207, 207], GREY = [99, 99, 99], ON_KLEIN_FAINT = [77, 109, 193];
+
+const fx = document.getElementById("fx"), hole = document.getElementById("hole");
+const pool = [];
+function rect(parent, x, y, w, h, fill, opacity = 1) {
+  const r = document.createElementNS(NS, "rect");
+  Object.entries({ x, y, width: w, height: h }).forEach(([k, v]) => r.setAttribute(k, String(Math.round(v))));
+  r.style.fill = fill; r.style.opacity = String(opacity);
+  parent.append(r);
+  pool.push(r);
+}
+// A dust puff: square particles flying out from (x, y) and fading over `u` in 0..1.
+const PUFF = [[-1, -0.6], [-0.6, -1], [0, -1.2], [0.6, -1], [1, -0.6], [-1.2, -0.1], [1.2, -0.1]];
+function puff(x, y, u, radius, fill, dirs = PUFF) {
+  if (u < 0 || u >= 1) return;
+  const e = ease(u);
+  dirs.forEach(([dx, dy], i) => {
+    const s = i % 2 ? P : 2 * P;
+    rect(fx, x + dx * radius * e - s / 2, y + dy * radius * e - s / 2, s, s, fill, 1 - u * u);
+  });
+}
+
+function renderRunner(t, cta) {
+  for (const r of pool.splice(0)) r.remove();
+  const ink = mix(KLEIN, WHITE, cta), dust = mix(GREY, WHITE, cta);
+  const x = runnerX(t);
+  let frame = "run" + (Math.floor(t / 100) % 4), dy = 0, visible = true;
+
+  // 45.6 s: the rail opens a dug hole; the runner hangs, drops in, poofs, and pops back out at 47.2 s.
+  const holeOpen = t >= HOLE[0] && t < HOLE[1];
+  if (holeOpen) {
+    const hx = HOLE_X;
+    rect(hole, hx - 18, GROUND - 1, 36, 4, "var(--bg)");
+    rect(hole, hx - 18, GROUND, 2, 12, dust); rect(hole, hx + 16, GROUND, 2, 12, dust); rect(hole, hx - 18, GROUND + 10, 36, 2, dust);
+    for (const side of [-1, 1]) {
+      const px = hx + side * 30 - 4;
+      rect(hole, px, GROUND - 2 * P, 3 * P, P, dust); rect(hole, px + P, GROUND - 3 * P, P, P, dust); rect(hole, px - P, GROUND - P, 5 * P, P, dust);
+    }
+    if (t < 45750) frame = "fall";
+    else if (t < 46300) { frame = "fall"; dy = 52 * Math.pow((t - 45750) / 550, 2); }
+    else if (t < 47200) visible = false;
+    else { const u = (t - 47200) / (HOLE[1] - 47200); frame = "fall"; dy = 44 * (1 - u) * (1 - u) - 34 * Math.sin(Math.PI * u); }
+    puff(hx, GROUND - 4, (t - 46400) / 700, 26, dust, PUFF.slice(0, 5));
+  }
+  if (t >= HOLE[1] && t < HOLE[1] + 300) frame = "run" + (Math.floor(t / 100) % 4);
+
+  // 52.0 s: a burst of speed with three speed lines.
+  const fast = (t >= BURST[0] && t < BURST[1]) || t >= ZIP;
+  if (fast) {
+    frame = "run" + (Math.floor(t / 50) % 4);
+    const flick = Math.floor(t / 50) % 2;
+    [[9, 22], [18, 30], [27, 16]].forEach(([y, len], i) => rect(fx, x - 8 - len - ((i + flick) % 2) * 4, GROUND - SH + y, len, P, ink, 0.9));
+  }
+  // 54.8 s: a skid with a puff of dust, then a full stop until 56.0 s.
+  if (t >= SKID[0] && t < STOPPED) frame = t < SKID[1] + 250 ? "skid" : "stand";
+  puff(x + SW + 2, GROUND - 4, (t - SKID[0]) / 700, 18, dust, PUFF.slice(2));
+  // 72.0 s: zips off the right edge, leaving a puff behind.
+  puff(runnerX(ZIP) + 6, GROUND - 6, (t - ZIP) / 800, 30, dust);
+
+  for (const [name, path] of Object.entries(frames)) path.style.display = visible && name === frame ? "" : "none";
+  runner.setAttribute("transform", `translate(${Math.round(x)},${Math.round(GROUND - SH + dy)})`);
+  runner.style.fill = ink;
+  document.querySelector("#ground rect").setAttribute("height", holeOpen ? String(GROUND + 100) : "160");
+  // The rail: travelled part in ink, the rest faint; after the zip it fills to the end.
+  const done = t < ZIP ? x + SW / 2 : x + SW / 2 + (1280 - x) * ease((t - ZIP) / 400);
+  document.getElementById("rail-done").setAttribute("width", String(Math.max(0, Math.min(1280, done))));
+  document.getElementById("rail-done").style.fill = ink;
+  document.getElementById("rail-rest").style.fill = mix(FAINT, ON_KLEIN_FAINT, cta);
+}
+
+function render(t) {
+  let cta = 0;
+  for (const scene of document.querySelectorAll(".scene")) {
+    const start = +scene.dataset.in, end = +scene.dataset.out;
+    const fadeIn = start === 0 ? 1 : ease((t - start) / EXIT);
+    const fadeOut = 1 - ease((t - (end - EXIT)) / EXIT);
+    const o = t < start ? 0 : Math.min(fadeIn, fadeOut);
+    scene.style.opacity = String(o);
+    scene.style.visibility = o > 0 ? "visible" : "hidden";
+    if (scene.classList.contains("cta")) cta = o;
+  }
+  for (const el of document.querySelectorAll(".a")) {
+    const p = ease((t - +el.dataset.in) / ENTER);
+    el.style.opacity = String(p);
+    el.style.transform = `translateY(${(1 - p) * SHIFT}px)`;
+  }
+  for (const { path, length, at, start, end } of drawn) {
+    const p = ease((t - at) / DRAW);
+    path.style.strokeDashoffset = String(length * (1 - p));
+    for (const [attr, value] of [["marker-start", start], ["marker-end", end]]) {
+      if (!value) continue;
+      if (p > 0.97) path.setAttribute(attr, value); else path.removeAttribute(attr);
+    }
+  }
+  // The Klein block appears with its line and then blinks: 530 ms on, 530 ms off. Stills never blink.
+  const still = "still" in document.body.dataset;
+  for (const k of document.querySelectorAll("[data-blink]")) {
+    const since = t - +k.dataset.blink - ENTER;
+    k.style.visibility = !still && since > 0 && Math.floor(since / BLINK) % 2 === 1 ? "hidden" : "visible";
+  }
+  renderToken(t);
+  renderThread(t);
+  renderRunner(t, cta);
+}
+document.addEventListener("render", () => render(Number(document.body.dataset.t)));
+render(Number(new URLSearchParams(location.search).get("t") ?? 3000));
+</script>
+</body>
+</html>
