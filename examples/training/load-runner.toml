@@ -1,0 +1,24 @@
+# Run from this directory:
+#   load-runner run      # terminal 1: the mechanics
+#   load-runner agent    # terminal 2: the intelligence
+#   load-runner watch    # terminal 3: you; step in with `load-runner say /stop`
+
+[bus]
+kind = "sqlite"
+path = ".load-runner/bus.db"
+
+[runner]
+name = "train"
+command = ["python3", "train.py", "--lr", "{lr}", "--epochs", "{epochs}"]
+interval = 1
+runs = 3
+flush = 1
+wait_for_reply = true # the next run waits for the agent's (or your) answer
+
+[params]
+lr = 0.3
+epochs = 5
+
+[agent]
+command = ["python3", "brain.py"] # or ["claude", "-p"], ["codex", "exec", "-"], …
+poll = 0.5
